@@ -1,10 +1,10 @@
-const _ = require('lodash')
-const inquirer = require('inquirer')
-const filesizeParser = require('filesize-parser')
-const prettySize = require('prettysize')
-const chalk = require('chalk')
+import _ from 'lodash'
+import inquirer from 'inquirer'
+import filesizeParser from 'filesize-parser'
+import prettySize from 'prettysize'
+import chalk from 'chalk'
 
-const config = require('./config')
+import { config } from './config.js'
 
 async function promptTitle (message, titles, truncateLength) {
   /* CHECKS */
@@ -100,6 +100,4 @@ function toChoicesTable (table, titles, colors = [], truncateLength) {
   return choices
 }
 
-module.exports = {
-  promptTitle
-}
+export { promptTitle }

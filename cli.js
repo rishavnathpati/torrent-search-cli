@@ -1,31 +1,16 @@
 #!/usr/bin/env node
 
-const index = require('./index')
+import { wizard } from './index.js';
+import sywac from 'sywac';
+import sywacStyleBasic from 'sywac-style-basic';
 
 // CLI entry point
-const cli = require('sywac')
+const cli = sywac
   // If only a string is entered, search that string
   .positional('[search]', {
     paramsDesc: 'Name of torrent to search for. If omitted, wizard will prompt for search.'
   })
-  // TODO: Include home dir config where defaults can be set
-  // If config command is run, change config
-  // .command('config <option> <value>', {
-  //   desc: 'Change config of specified option.',
-  //   params: [{
-  //     desc: 'Config option to change.',
-  //     choices: ['openInDefault', 'openInApp', 'copyToClipBoard']
-  //   }, {
-  //     desc: 'Value to set option to.',
-  //     choices: ['true', 'false'],
-  //     defaultValue: 'true'
-  //   }],
-  //   setup: sywac => sywac.boolean('-z', { desc: 'This is the z description' }),
-  //   run: argv => {
-  //     index.changeConfig(argv)
-  //   }
-  // })
-  .style(require('sywac-style-basic'))
+  .style(sywacStyleBasic)
   .outputSettings({ maxWidth: 100 })
   .enumeration('-c, --cat, --category', {
     desc: 'Limit torrent search to a category (some providers use different categories).',
@@ -44,7 +29,6 @@ const cli = require('sywac')
     desc: 'Number of characters to show before truncating torrent titles.',
     defaultValue: 40
   })
-  // TODO: Remove some of these options in favor of a config.json that lives in home dir
   .boolean('-b, --copy, --clipboard', {
     desc: `Copy selected torrent's magnet url to your clipboard.`,
     defaultValue: false
@@ -57,21 +41,23 @@ const cli = require('sywac')
     desc: 'Name of app to open selected torrent in (e.g. "utorrent"). Overrides --openDefault flag.'
   })
   .help('-h, --help')
-  .version('-v, --version')
+  .version('-v, --version');
 
-async function main () {
-  const argv = await cli.parseAndExit()
+async function main() {
+  const argv = await cli.parseAndExit();
+  
   const cliOptions = {
     openDefault: argv.openDefault,
     clipboard: argv.clipboard,
     openApp: argv.openApp
-  }
+  };
   // If space-separated strings were entered in search, join them together
-  if (argv.search && argv._) argv.search = [argv.search, ...argv._].join(' ')
+  if (argv.search && argv._) argv.search = [argv.search, ...argv._].join(' ');
   // When nothing is passed in, the wizard will ask the user to search
-  index.wizard(false, argv.search, argv.category, argv.provider, argv.rows, argv.truncate, cliOptions)
+  wizard(false, argv.search, argv.category, argv.provider, argv.rows, argv.truncate, cliOptions);
 }
 
-if (require.main === module) {
-  main()
-}
+main().catch(err => {
+  console.error('Error:', err);
+  process.exit(1);
+});

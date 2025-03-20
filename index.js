@@ -1,13 +1,13 @@
-const _ = require('lodash')
-const inquirer = require('inquirer')
-const TorrentSearchApi = require('torrent-search-api')
-const chalk = require('chalk')
-const ora = require('ora')
-const clipboardy = require('clipboardy')
-const open = require('open')
+import _ from 'lodash'
+import inquirer from 'inquirer'
+import TorrentSearchApi from 'torrent-search-api'
+import chalk from 'chalk'
+import { oraPromise } from 'ora'
+import clipboardy from 'clipboardy'
+import open from 'open'
 
-const config = require('./config')
-const utils = require('./utils')
+import { config } from './config.js'
+import { promptTitle } from './utils.js'
 
 const options = {
   openDefault: config.method.openInDefault,
@@ -23,7 +23,7 @@ function overWriteOptions (cliOpts) {
 
 async function wizard (isNext, searchQuery, category, provider, rows, truncateLength, cliOpts) {
   if (cliOpts) overWriteOptions(cliOpts)
-  // Ask use if they want to continue if after first iteration
+  // Ask user if they want to continue if after first iteration
   if (isNext) {
     const choices = ['Yes', 'No']
     const shouldContinuePrompt = await inquirer.prompt({
@@ -46,30 +46,39 @@ async function wizard (isNext, searchQuery, category, provider, rows, truncateLe
 async function getTorrents (query, category, provider, providers = config.torrents.providers.available, rows = config.torrents.limit) {
   const hasProvider = !!provider
   if (!provider) {
-    provider = await inquirer.prompt({
+    const providerPrompt = await inquirer.prompt({
       type: config.listType,
       name: 'selection',
       message: 'Which torrent provider would you like to start with?',
       choices: providers
     })
-    provider = provider.selection
+    provider = providerPrompt.selection
   }
 
-  const spinner = ora(`Waiting for "${chalk.bold(provider)}"...`).start()
   try {
     TorrentSearchApi.disableAllProviders()
     TorrentSearchApi.enableProvider(provider)
     if (!category) category = 'All'
-    const torrents = await TorrentSearchApi.search(query, category, rows)
-    spinner.stop()
+    
+    // Use oraPromise to show a spinner during the search
+    const torrents = await oraPromise(
+      TorrentSearchApi.search(query, category, rows),
+      {
+        text: `Searching "${chalk.bold(query)}" on "${chalk.bold(provider)}"...`,
+        successText: `Found results on "${chalk.bold(provider)}"`,
+        failText: `No torrents found via "${chalk.bold(provider)}"`
+      }
+    )
+    
     if (!torrents.length) throw new Error('No torrents found.')
     return torrents
   } catch (e) {
-    spinner.stop()
     console.error(chalk.yellow(`No torrents found via "${chalk.bold(provider)}"`))
     const nextProviders = _.without(providers, provider)
     const nextProvider = hasProvider ? providers[providers.indexOf(provider) + 1] : ''
     if (!nextProvider || !nextProviders.length) return []
+    // Automatically fallback to next provider without requiring user intervention
+    console.log(chalk.cyan(`Trying next provider: "${chalk.bold(nextProvider)}"`))
     return getTorrents(query, category, nextProvider, nextProviders, rows)
   }
 }
@@ -78,7 +87,7 @@ async function getTorrent (withQuery, category, provider, rows, truncateLength) 
   let searchString = ''
   while (true) {
     if (!withQuery) {
-      let query = await inquirer.prompt({
+      const query = await inquirer.prompt({
         type: 'input',
         name: 'input',
         message: 'What do you want to download?'
@@ -87,6 +96,18 @@ async function getTorrent (withQuery, category, provider, rows, truncateLength) 
     } else {
       searchString = withQuery
     }
+    
+    // Add category selection through wizard if not provided
+    if (!category) {
+      const categoryPrompt = await inquirer.prompt({
+        type: config.listType,
+        name: 'selection',
+        message: 'Which category do you want to search in?',
+        choices: ['All', 'Movies', 'TV', 'Music', 'Games', 'Apps', 'Books', 'Top100']
+      })
+      category = categoryPrompt.selection
+    }
+    
     const torrents = await getTorrents(searchString, category, provider, undefined, rows)
     if (!torrents || !torrents.length) {
       console.error(chalk.yellow(`No torrents found for "${chalk.bold(searchString)}" in category: "${category}", try another query.`))
@@ -94,7 +115,7 @@ async function getTorrent (withQuery, category, provider, rows, truncateLength) 
       category = undefined
       continue
     }
-    return utils.promptTitle('Which torrent?', torrents, truncateLength)
+    return promptTitle('Which torrent?', torrents, truncateLength)
   }
 }
 
@@ -109,17 +130,14 @@ async function getMagnet (torrent) {
 async function download (magnet, torrent) {
   if (options.clipboard) {
     console.log(chalk.bold('Magnet link for ') + chalk.cyan(torrent.title) + chalk.bold(' copied to clipboard.'))
-    clipboardy.writeSync(magnet)
+    await clipboardy.write(magnet)
   }
   if (options.openApp) {
-    await open(magnet, { app: options.openApp })
+    await open(magnet, { app: { name: options.openApp } })
   } else if (options.openDefault) {
     await open(magnet)
   }
   return wizard(true)
 }
 
-module.exports = {
-  wizard,
-  getTorrent
-}
+export { wizard, getTorrent }

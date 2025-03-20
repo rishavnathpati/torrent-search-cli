@@ -1,6 +1,6 @@
-const isWindows = /^win/.test(process.platform)
+import os from 'os';
 
-module.exports = {
+export const config = {
   method: {
     clipboard: false, // Copy magnet link to clipboard
     openInApp: false, // Open in utorrent (change this prop with name of default app e.g. 'utorrent')
@@ -20,5 +20,5 @@ module.exports = {
       active: '1337x'
     }
   },
-  listType: isWindows ? 'rawlist' : 'list'
-}
+  listType: os.platform() === 'win32' ? 'rawlist' : 'list'
+};
